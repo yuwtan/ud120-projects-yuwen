@@ -3,58 +3,48 @@
 import sys
 import pickle
 import math
-import numpy as np
-
 sys.path.append("../tools/")
-from feature_format import featureFormat, targetFeatureSplit
 
+from feature_format import featureFormat, targetFeatureSplit
+from tester import dump_classifier_and_data
+
+### Task 1: Select what features you'll use.
+### features_list is a list of strings, each of which is a feature name.
+### The first feature must be "poi".
+
+features_list = ['poi',
+                 'exercised_stock_options',
+                 'total_stock_value',
+                 'bonus',
+                 'salary',
+                 'ratio_from_this_person_to_poi',
+                 'deferred_income',
+                 'long_term_incentive',
+                 'restricted_stock',
+                 'ratio_shared_receipt_with_poi',
+                 'total_payments'
+                 ]
+
+
+### Load the dictionary containing the dataset
 with open("final_project_dataset.pkl", "r") as data_file:
     data_dict = pickle.load(data_file)
 
+### Task 2: Remove outliers
 
-print len(data_dict)
-
-""" scatterplot salary and bonus """
-
-for person in data_dict:
-    # read person's information
-    data_point = data_dict[person]
-    salary = float(data_point['salary'])
-    bonus = float(data_point['bonus'])
-    shared_receipt_with_poi = float(data_point['shared_receipt_with_poi'])
-    to_messages = float(data_point['to_messages'])
-
-    # find people with strange email data
-    if shared_receipt_with_poi > to_messages:
-        print "Person with strange email information: \t", person
-        print "shared_receipt_with_poi is: \t", shared_receipt_with_poi
-        print "to_messages is: \t", to_messages
-
-
-    # scatterlpot salary and bonus
-    # pyplot.scatter(salary, bonus)
-
-# pyplot.xlabel("salary")
-# pyplot.ylabel("bonus")
-# pyplot.show()
-
-""" find out the outlier """
-for person in data_dict:
-    data_point = data_dict[person]
-    if float(data_point['salary']) > 10000000:
-        print "Person with salary higher than 10 million: \t", person
-
-""" remove the outlier """
 data_dict.pop('TOTAL', 0);
 data_dict.pop('THE TRAVEL AGENCY IN THE PARK', 0);
+data_dict['GLISAN JR BEN F']['shared_receipt_with_poi'] = data_dict['GLISAN JR BEN F']['to_messages'];
+my_dataset = data_dict
 
-""" correct email data """
-data_dict['GLISAN JR BEN F']['shared_receipt_with_poi'] = data_dict['GLISAN JR BEN F']['to_messages']
 
-for person in data_dict:
+### Task 3: Create new feature(s)
+### Store to my_dataset for easy export below.
+
+for person in my_dataset:
 
     # read dataset information
-    data_point = data_dict[person]
+    data_point = my_dataset[person]
 
     from_poi_to_this_person = float(data_point['from_poi_to_this_person'])
     shared_receipt_with_poi = float(data_point['shared_receipt_with_poi'])
@@ -93,89 +83,85 @@ for person in data_dict:
     data_point['ratio_shared_receipt_with_poi'] = ratio_shared_receipt_with_poi
     data_point['ratio_stock_to_payments'] = ratio_stock_to_payments
 
+### feature selection from RandomForest
+features_list_all = ['poi',
+                     'salary', 'deferral_payments',
+                     'total_payments', 'loan_advances',
+                     'bonus', 'restricted_stock_deferred',
+                     'deferred_income', 'total_stock_value',
+                     'expenses', 'exercised_stock_options',
+                     'other', 'long_term_incentive',
+                     'restricted_stock', 'director_fees',
+                     'to_messages', 'from_poi_to_this_person',
+                     'from_messages', 'from_this_person_to_poi',
+                     'shared_receipt_with_poi',
+                     'ratio_from_poi_to_this_person', 'ratio_from_this_person_to_poi',
+                     'ratio_shared_receipt_with_poi', 'ratio_stock_to_payments'
+                     ]
+data = featureFormat(my_dataset, features_list_all, sort_keys = True)
+labels, features = targetFeatureSplit(data)
 
-features_list = ['poi',
-                 'salary', 'deferral_payments',
-                 'total_payments', 'loan_advances',
-                 'bonus', 'restricted_stock_deferred',
-                 'deferred_income', 'total_stock_value',
-                 'expenses', 'exercised_stock_options',
-                 'other', 'long_term_incentive',
-                 'restricted_stock', 'director_fees',
-                 'to_messages', 'from_poi_to_this_person',
-                 'from_messages', 'from_this_person_to_poi',
-                 'shared_receipt_with_poi',
-                 'ratio_from_poi_to_this_person', 'ratio_from_this_person_to_poi',
-                 'ratio_shared_receipt_with_poi', 'ratio_stock_to_payments'
-                ]
-
-data1 = featureFormat(data_dict, features_list, sort_keys = True)
-
-
+"""
 from sklearn.ensemble import RandomForestClassifier
+import numpy as np
 forest = RandomForestClassifier(n_estimators=1000, max_depth=3, random_state=0, n_jobs=-1)
-
-labels, features = targetFeatureSplit(data1)
 forest.fit(features, labels)
 importances = forest.feature_importances_
 indices = np.argsort(importances)[::-1]
 for f in range(len(features[0])):
-    print("%2d) %-*s %f" % (f+1, 30, features_list[indices[f]+1], importances[indices[f]]))
+    print("%2d) %-*s %f" % (f+1, 30, features_list_all[indices[f]+1], importances[indices[f]]))
+"""
+from sklearn.feature_selection import SelectKBest, f_classif
+import numpy as np
+selector = SelectKBest(f_classif)
+selector.fit(features, labels)
+indices = np.argsort(selector.scores_)[::-1]
+for f in range(len(features[0])):
+    print("%2d) %-*s %f" % (f+1, 30, features_list_all[indices[f]+1], selector.scores_[indices[f]]))
 
 
-features_list_final = ['poi',
-                       'exercised_stock_options',
-                       'ratio_from_this_person_to_poi',
-                       'bonus',
-                       'ratio_shared_receipt_with_poi',
-                       'total_stock_value',
-                       'ratio_stock_to_payments',
-                       'other',
-                       'deferred_income',
-                       'expenses',
-                       'restricted_stock'
-                       ]
 
-data = featureFormat(data_dict, features_list_final, sort_keys = True)
+### Task 4: Try a varity of classifiers
+### Please name your classifier clf for easy export below.
+### Note that if you want to do PCA or other multi-stage operations,
+### you'll need to use Pipelines. For more info:
+### http://scikit-learn.org/stable/modules/pipeline.html
 
-
-from sklearn import metrics
-from sklearn.pipeline import Pipeline
-from sklearn.decomposition import PCA
-from sklearn.naive_bayes import GaussianNB
-from sklearn.svm import SVC
-from sklearn.linear_model import LogisticRegression
+# Provided to give you a starting point. Try a variety of classifiers.
 from sklearn.model_selection import GridSearchCV
-from sklearn.model_selection import StratifiedShuffleSplit
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.preprocessing import MinMaxScaler
 
+from sklearn.naive_bayes import GaussianNB
+clf_nb = GaussianNB()
 
-param_svm = {'kernel':('linear', 'rbf'), 'C':[1, 10, 100]}
+from sklearn.svm import SVC
+param_svm = {'kernel':('linear', 'rbf'), 'C':[1, 100, 10000]}
 svr = SVC()
 clf_svm = GridSearchCV(svr, param_svm)
 
-clf_nb = GaussianNB()
-
+from sklearn.linear_model import LogisticRegression
 param_lr = {'penalty':('l1', 'l2'), 'C':[1, 100, 10000]}
 lr = LogisticRegression()
 clf_lr = GridSearchCV(lr, param_lr)
 
-"""
-param_rf = {'max_depth':[3, 4]}
-rf = RandomForestClassifier(n_estimators=1000, random_state=42, n_jobs=-1)
-clf_rf = GridSearchCV(rf, param_rf)
-"""
-
+from sklearn.tree import DecisionTreeClassifier
 param_dt = {'max_depth':[4, 6, 8]}
 dt = DecisionTreeClassifier()
 clf_dt = GridSearchCV(dt, param_dt)
 
+### Task 5: Tune your classifier to achieve better than .3 precision and recall
+### using our testing script. Check the tester.py script in the final project
+### folder for details on the evaluation method, especially the test_classifier
+### function. Because of the small size of the dataset, the script uses
+### stratified shuffle split cross validation. For more info:
+### http://scikit-learn.org/stable/modules/generated/sklearn.cross_validation.StratifiedShuffleSplit.html
+
+# Example starting point. Try investigating other evaluation techniques!
+
+from sklearn.model_selection import StratifiedShuffleSplit
 sss = StratifiedShuffleSplit(n_splits=1000, random_state=42)
-
-labels, features = targetFeatureSplit(data)
-
+from sklearn.preprocessing import MinMaxScaler
 scaler = MinMaxScaler()
+from sklearn.decomposition import PCA
 
 def test_clf(features, labels, clf, PCA_k):
     true_negatives = 0
@@ -222,55 +208,55 @@ def test_clf(features, labels, clf, PCA_k):
     return total_predictions, accuracy, precision, recall, f1, f2
 
 
-print test_clf(features, labels, clf_nb, 3)
-print test_clf(features, labels, clf_lr, 3)
-print test_clf(features, labels, clf_svm, 3)
-print test_clf(features, labels, clf_dt, 3)
 
-print test_clf(features, labels, clf_nb, 6)
-print test_clf(features, labels, clf_lr, 6)
-print test_clf(features, labels, clf_svm, 6)
-print test_clf(features, labels, clf_dt, 6)
+### Extract features and labels from dataset for local testing
+for KBest_k in range(5, 11):
+    for PCA_k in range(1, KBest_k-2):
+        data = featureFormat(my_dataset, features_list[0:KBest_k-1], sort_keys = True)
+        labels, features = targetFeatureSplit(data)
+        total_predictions, accuracy, precision, recall, f1, f2 = test_clf(features, labels, clf_nb, PCA_k)
+        if precision > 0.3 and recall > 0.3:
+            print "Naive Bayes: KBest set to ", KBest_k, "; PCA set to", PCA_k
+            print test_clf(features, labels, clf_nb, PCA_k)
 
-print test_clf(features, labels, clf_nb, 9)
-print test_clf(features, labels, clf_lr, 9)
-print test_clf(features, labels, clf_svm, 9)
-print test_clf(features, labels, clf_dt, 9)
+for KBest_k in range(5, 11):
+    for PCA_k in range(1, KBest_k-2):
+        data = featureFormat(my_dataset, features_list[0:KBest_k-1], sort_keys = True)
+        labels, features = targetFeatureSplit(data)
+        total_predictions, accuracy, precision, recall, f1, f2 = test_clf(features, labels, clf_lr, PCA_k)
+        if precision > 0.3 and recall > 0.3:
+            print "Logistic Regression: KBest set to ", KBest_k, "; PCA set to", PCA_k
+            print test_clf(features, labels, clf_lr, PCA_k)
 
-"""
+for KBest_k in range(5, 11):
+    for PCA_k in range(1, KBest_k - 2):
+        data = featureFormat(my_dataset, features_list[0:KBest_k - 1], sort_keys=True)
+        labels, features = targetFeatureSplit(data)
+        total_predictions, accuracy, precision, recall, f1, f2 = test_clf(features, labels, clf_dt, PCA_k)
+        if precision > 0.3 and recall > 0.3:
+            print "Decision Tree: KBest set to ", KBest_k, "; PCA set to", PCA_k
+            print test_clf(features, labels, clf_dt, PCA_k)
 
-from sklearn.cross_validation import train_test_split
+for KBest_k in range(5, 11):
+    for PCA_k in range(1, KBest_k - 2):
+        data = featureFormat(my_dataset, features_list[0:KBest_k - 1], sort_keys=True)
+        labels, features = targetFeatureSplit(data)
+        total_predictions, accuracy, precision, recall, f1, f2 = test_clf(features, labels, clf_svm, PCA_k)
+        if precision > 0.3 and recall > 0.3:
+            print "SVM: KBest set to ", KBest_k, "; PCA set to", PCA_k
+            print test_clf(features, labels, clf_svm, PCA_k)
 
-features_train, features_test, labels_train, labels_test = \
-    train_test_split(features, labels, test_size=0.3, random_state=42)
-
-pca = RandomizedPCA(n_components=2, whiten=True).fit(features_train)
-features_train = pca.transform(features_train)
-features_test = pca.transform(features_test)
 
 
-from sklearn.naive_bayes import GaussianNB
+from sklearn.pipeline import Pipeline
+estimators = [('scaler', MinMaxScaler()),
+              ('reduce_dim', PCA(n_components=6, whiten=True)),
+              ('clf', GaussianNB())]
+clf = Pipeline(estimators)
 
-clf_nb = GaussianNB()
-labels_nb = clf_nb.fit(features_train, labels_train).predict(features_test)
-print('Naive Bayes:')
-print(metrics.classification_report(labels_test, labels_nb))
+### Task 6: Dump your classifier, dataset, and features_list so anyone can
+### check your results. You do not need to change anything below, but make sure
+### that the version of poi_id.py that you submit can be run on its own and
+### generates the necessary .pkl files for validating your results.
 
-labels, features = targetFeatureSplit(data2)
-features_train, features_test, labels_train, labels_test = \
-    train_test_split(features, labels, test_size=0.3, random_state=42)
-
-pca = RandomizedPCA(n_components=2, whiten=True).fit(features_train)
-features_train = pca.transform(features_train)
-features_test = pca.transform(features_test)
-
-from sklearn.naive_bayes import GaussianNB
-
-clf_nb = GaussianNB()
-labels_nb = clf_nb.fit(features_train, labels_train).predict(features_test)
-print('Naive Bayes:')
-print(metrics.classification_report(labels_test, labels_nb))
-
-clf = clf_nb
-# dump_classifier_and_data(clf, my_dataset, features_list)
-"""
+dump_classifier_and_data(clf, my_dataset, features_list)
